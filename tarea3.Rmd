@@ -1,0 +1,1065 @@
+---
+title: "tarea3"
+author: "Karina De Sousa"
+date: "9 de abril de 2016"
+output: pdf_document
+---
+
+#Objectivo:
+
+Escoger, en base a los conocimientos adquiridos en clase, el mejor algoritmo de clustering seg&uacute;n su criterio para distintos datasets dados por el grupo docente.
+
+***
+
+#Soluci&oacute;n:
+
+Cargamos los paquetes necesarios,
+
+```{r warning=FALSE, echo=FALSE, message=FALSE}
+install = function(pkg){
+  # Si ya est\'a instalado, no lo instala.
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg, repos = "http:/cran.rstudio.com", dependencies = TRUE)
+    if (!require(pkg, character.only = TRUE)) stop(paste("load failure:", pkg))
+  }
+}
+
+packages <- c("stats", "gmodels", "scatterplot3d");
+for (i in packages){
+  install(i)
+}
+
+(.packages())
+```
+
+##_a.csv_
+
+1. Cargamos el dataset **_a.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+aFile = read.csv(file = "./a.csv", header = FALSE, sep = ",")
+head(aFile)
+```
+
+2. Separamos la &uacute;tima columna del dataset. La cual, hace referencia a la clase de cada instancia, 
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+aClass = aFile$V3
+aFile = aFile[c("V1", "V2")]
+head(aFile)
+```
+
+3. Ahora, hacemos un _plot_ para verificar como se comportan los datos de **_a.csv_**,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Sumamos uno a aClass porque la clase cero es el color blanco
+plot(aFile$V1,
+      aFile$V2,
+      col = aClass + 1,
+      xlab = "v1",
+      ylab = "v2",
+      main = "Archivo a.csv")
+```
+
+Vemos que los datos se separan en 3 clusters circulares bien definidos y basandonos en la teor&iacute;a, k medias es la mejor forma de predecir las clases de este tipo de datasets. 
+
+4. Usamos la funci&oacute;n kmeans y verificamos que tan bien predice las clases del dataset con **k=3**, porque este fue el n&uacute;mero de clusters hallados en el an&aacute;lisis exploratorio,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+aFile.k.medias = kmeans(x = aFile, centers = 3)
+
+#Graficamos los clusters obtenidos en kmeans
+plot(aFile$V1,
+      aFile$V2,
+      col = aFile.k.medias$cluster,
+      xlab = "v1",
+      ylab = "v2",
+      main = "Archivo a.csv")
+
+#Graficamos los centroides asociados a cada cluster
+#Usamos un color distinto para los centroides para verlos mejor 
+
+#Para a_big.csv
+aCentroids = aFile.k.medias$centers
+
+points(x = aFile.k.medias$centers[, c("V1", "V2")], col = 4:6, pch = 19, cex = 3)
+```
+
+5. Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=aFile.k.medias$cluster, y=aClass, prop.chisq = FALSE)
+```
+
+Vemos que las etiquetas de las clases asignadas por _kmeans_ son distintas a las de _aClass_. Podemos modificar esto para que la matriz de confusi&oacute;n sea m&aacute;s f&aacute;cil de leer,  
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+aClusters = aFile.k.medias$cluster
+aClusters[aClusters==1] = 4
+aClusters[aClusters==2] = 5
+aClusters[aClusters==3] = 6
+
+aClusters[aClusters==4] = 2
+aClusters[aClusters==5] = 1
+aClusters[aClusters==6] = 0
+
+CrossTable(x=aClusters, y=aClass, prop.chisq = FALSE)
+```
+
+Vemos que el algoritmo solo se equivoca con un punto que originalmente es de la clase 2 y es clasificado como parte de la clase 0. Haciendo de _k medias_ el mejor algoritmos para el dataset **_a.csv_**.
+
+##_moon.csv_
+
+1. Cargamos el dataset **_moon.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+moonFile = read.csv(file = "./moon.csv", header = FALSE, sep = ",")
+head(moonFile)
+```
+
+2. Separamos la &uacute;tima columna del dataset. La cual, hace referencia a la clase de cada instancia,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+moonClass = moonFile$V3
+moonFile = moonFile[c("V1", "V2")]
+head(moonFile)
+```
+
+3. Ahora, hacemos un _plot_ para verificar como se comportan los datos de **_a.csv_**,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Sumamos uno a moonClass porque la clase cero es el color blanco
+plot(moonFile$V1,
+      moonFile$V2,
+      col = moonClass + 1,
+      xlab = "v1",
+      ylab = "v2",
+      main = "Archivo moon.csv")
+```
+
+Vemos que los datos se separan en 2 clusters con forma de media luna, por lo que un algoritmos jer&aacute;rquico ser&aacute; la mejor forma de predecir las clases de este dataset. 
+
+4. Para usar la funci&oacute;n _hclust_ debemos seleccionar el metodo de aglomeracion, en este caso usaremos la norma 2. Para esto, calculamos la misma usando la funci&oacute;n _dist_.
+
+Para _hclust_ podemos usar _complete link_ o _single link_, 
+
+* Con _sinlge link_ la similaridad entre dos clusters es la mayor similaridad entre dos de sus miembros. Este m&eacute;todo se ajusta a la forma de los clusters. 
+
+* Con _complete link_ la similaridad entre dos clusters es la menor similaridad entre dos de sus miembros. Este m&eacute;todo funciona muy bien para clusters verticales.
+
+Basados en la teor&iacute;a y en la forma de los clusters de **_moon.csv_**, usaremos _single link_.
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Dataframe a Matrix
+moonFileMatrix = as.matrix(moonFile)
+
+# Matriz de distancia con norma 2
+#method = "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+distancia = dist(moonFileMatrix)
+
+# Método por defecto es complete link
+#"single", "complete"
+metodo = "single"
+
+cluster = hclust(distancia, method = metodo)
+
+plot(cluster,
+      main = "Cluster jerarquico de moon.csv")
+```
+
+5. A partir del dendograma obtenido en el punto anterior, determinamos las clases que el m&eacute;todo asigno a cada instancia usando _cutree_.
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#En el analisis exploratoria observamos 2 clusters, por lo qu este sera el numero de clases 
+nclases = 2
+#Cortamos
+corte = cutree(cluster, k=nclases)
+
+#Graficamos el dataset con el color de las clases obtenidas con hclust
+plot(moonFile$V1,
+      moonFile$V2,
+      col = corte,
+      xlab = "v1",
+      ylab = "v2",
+      main = "Archivo moon.csv hclust single")
+```
+
+6. Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=corte, y=moonClass+1, prop.chisq = FALSE)
+```
+
+Vemos que todos los datos fueron clasificados de forma correcta.
+
+## _h.csv_
+
+1. Cargamos el dataset **_h.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+hFile = read.csv(file = "./h.csv", header = FALSE, sep = ",")
+head(hFile)
+
+summary(hFile$V4)
+```
+
+2. La &uacuteltima columna de **_h.csv_** contiene las clases asociadas a las instancias del dataset, pero estos valores se encuentran en el intervalo **(4,15)** por lo que debemos transformarlas y para esto implementamos la funci&oacute;n _**definir_clase**_
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+definir_clase = function(numero){
+  if(numero <= 6.0)
+    return(1)
+  else if(numero > 6.0 && numero <= 8.0)
+    return(2)
+  else if(numero > 8.0 && numero <= 10.0)
+    return(3)
+  else if(numero > 10.0 && numero <= 12.0)
+    return(4)
+  else
+    return(5)
+}
+```
+
+Ahora, usamos esta funci&oacute;n para asignar una clase a cada instancia del dataset,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+for (i in 1:length(hFile$V4)) {
+  hFile$V4[i] = definir_clase(hFile$V4[i])
+}
+
+#hFile$V4
+```
+
+3. Separamos la &uacute;tima columna del dataset. La cual, hace referencia a la clase de cada instancia, 
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+hClass = hFile$V4
+hFile = hFile[c("V1", "V2", "V3")]
+head(hFile)
+```
+
+Vemos cuantas clases contiene el dataset
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+table(hClass)
+```
+
+El dataset posee 5 clases.
+
+4. Ahora graficamos el dataset, para verificar como se comportan los datos
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+scatterplot3d(hFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "h.csv en 3D",
+              pch = 20, color = hClass)
+
+plot(hFile,
+      col = hClass,
+      main = "Archivo h.csv")
+```
+
+Vemos que las columnas relevantes son _V1_ y _V3_, ya que con ellas se ve la figura formada por los datos (espiral).
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+hFile = hFile[c("V1", "V3")]
+head(hFile)
+
+plot(hFile$V1,
+      hFile$V3,
+      col = hClass,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo h.csv")
+
+scatterplot3d(hFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "h.csv en 3D",
+              pch = 20, color = hClass)
+```
+
+Probaremos varios m&eacute;todos, para comprobar con cual se predicen mejor las clases,
+
+5. **Usando _kmeans_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+hFile.k.medias = kmeans(x = hFile, centers = 5)
+
+#Graficamos los clusters obtenidos en kmeans
+plot(hFile$V1,
+      hFile$V3,
+      col = hFile.k.medias$cluster,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo h.csv con kmedias")
+
+#Graficamos los centroides asociados a cada cluster
+#Usamos un color distinto para los centroides para verlos mejor 
+points(x = hFile.k.medias$centers[, c("V1", "V3")], col = 1:5, pch = 20, cex = 3)
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=hFile.k.medias$cluster, y=hClass, prop.chisq = FALSE)
+```
+
+Se clasifican 260 filas de 140 como 1, 233 de 219 como 2, 135 de 214 como 3, 160 de 201 como 4 y 212 de 226 como 5.
+
+Claramente vemos que existe un alto margen de error usando kmedias con este dataset.
+
+6. **Usando _hclust complete_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Dataframe a Matrix
+hFileMatrix = as.matrix(hFile)
+
+# Matriz de distancia con norma 2
+#method = "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+distancia = dist(hFileMatrix, method = "euclidean")
+
+# Método por defecto es complete link
+#"single", "complete"
+metodo = "complete"
+
+cluster = hclust(distancia, method = metodo)
+
+plot(cluster,
+      main = "Cluster jerarquico de h.csv")
+
+#Definimos 5 clases con definir_clases()
+nclases = 5
+
+#Cortamos
+corte = cutree(cluster, k=nclases)
+
+#Graficamos el dataset con el color de las clases obtenidas con hclust
+plot(hFile$V1,
+      hFile$V3,
+      col = corte,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo h.csv hclust complete")
+
+scatterplot3d(hFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "h.csv en 3D",
+              pch = 20, color = corte)
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=corte, y=hClass, prop.chisq = FALSE)
+```
+
+Se clasifican 195 filas de 140 como 1, 214 de 219 como 2, 114 de 214 como 3, 246 de 201 como 4 y 231 de 226 como 5.
+
+La clasificaci&oacuten sigue siendo mala por el margen de error que existe.
+
+7. **Usando _hclust single_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Dataframe a Matrix
+hFileMatrix = as.matrix(hFile)
+
+# Matriz de distancia con norma 2
+#method = "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+distancia = dist(hFileMatrix, method = "euclidean")
+
+# Método por defecto es complete link
+#"single", "complete"
+metodo = "single"
+
+cluster = hclust(distancia, method = metodo)
+
+plot(cluster,
+      main = "Cluster jerarquico de h.csv")
+
+#Definimos 5 clases con definir_clases()
+nclases = 5
+
+#Cortamos
+corte = cutree(cluster, k=nclases)
+
+#Graficamos el dataset con el color de las clases obtenidas con hclust
+plot(hFile$V1,
+      hFile$V3,
+      col = corte,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo h.csv hclust complete")
+
+scatterplot3d(hFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "h.csv en 3D",
+              pch = 20, color = corte)
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=corte, y=hClass, prop.chisq = FALSE)
+```
+
+Se clasifican 762 filas de 140 como 1, 84 de 219 como 2, 114 de 98 como 3, 246 de 50 como 4 y 6 de 226 como 5.
+
+Con este m&eacute;todo la clasificaci&oacute;n es peor que con los anteriores. 
+
+8. **Conclusi&oacute;n**: 
+
+Como a mencionamos usando cluster jer&acute;rquico con _single link_ obtenemos los peores resultados. Con k medias existe un alto margen de error, al igual que con cluster jer&acute;rquico con _complete link_, pero en este &uacute;ltimo la clasificaci&oacute;n es ligeramente mejor. 
+
+En general, ninguno de los m&eacute;todos usados funcionan de forma correcta con este dataset debido a su forma en espiral. Se debe usar un m&eacute;todo que se ajuste de manera correcta a esta forma. 
+
+## _s.csv_
+
+1. Cargamos el dataset **_s.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+sFile = read.csv(file = "./s.csv", header = FALSE, sep = ",")
+head(sFile)
+
+summary(sFile$V4)
+```
+
+2. La &uacuteltima columna de **_s.csv_** contiene las clases asociadas a las instancias del dataset, pero estos valores se encuentran en el intervalo **(-4,5)** por lo que debemos transformarlas y para esto implementamos la funci&oacute;n _**definir_clase**_
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+definir_clase_s = function(numero){
+  if(numero <= -3.0)
+    return(1)
+  else if(numero > -3.0 && numero <= -1.0)
+    return(2)
+  else if(numero > -1.0 && numero <= 1.0)
+    return(3)
+  else if(numero > 1.0 && numero <= 3.0)
+    return(4)
+  else
+    return(5)
+}
+```
+
+Ahora, usamos esta funci&oacute;n para asignar una clase a cada instancia del dataset,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+for (i in 1:length(sFile$V4)) {
+  sFile$V4[i] = definir_clase_s(sFile$V4[i])
+}
+
+#sFile$V4
+```
+
+3. Separamos la &uacute;tima columna del dataset. La cual, hace referencia a la clase de cada instancia, 
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+sClass = sFile$V4
+sFile = sFile[c("V1", "V2", "V3")]
+head(sFile)
+```
+
+Vemos cuantas clases contiene el dataset
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+table(sClass)
+```
+
+El dataset posee 5 clases.
+
+4. Ahora graficamos el dataset, para verificar como se comportan los datos
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+scatterplot3d(hFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "s.csv en 3D",
+              pch = 20, color = sClass)
+
+plot(sFile,
+      col = sClass,
+      main = "Archivo s.csv")
+```
+
+Vemos que las columnas relevantes son _V1_ y _V3_, ya que con ellas se ve la figura formada por los datos (S).
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+sFile = sFile[c("V1", "V3")]
+head(sFile)
+
+plot(sFile$V1,
+      sFile$V3,
+      col = sClass,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo s.csv")
+
+scatterplot3d(sFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "s.csv en 3D",
+              pch = 20, color = sClass)
+```
+
+Probaremos varios m&eacute;todos, para comprobar con cual se predicen mejor las clases,
+
+5. **Usando _kmeans_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+sFile.k.medias = kmeans(x = sFile, centers = 5)
+
+#Graficamos los clusters obtenidos en kmeans
+plot(sFile$V1,
+      sFile$V3,
+      col = sFile.k.medias$cluster,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo s.csv con kmedias")
+
+#Graficamos los centroides asociados a cada cluster
+#Usamos un color distinto para los centroides para verlos mejor 
+points(x = sFile.k.medias$centers[, c("V1", "V3")], col = 1:5, pch = 20, cex = 3)
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=sFile.k.medias$cluster, y=sClass, prop.chisq = FALSE)
+```
+
+Existe un margen de error que no es tan grande como el del dataset anterior.
+
+6. **Usando _hclust complete_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Dataframe a Matrix
+sFileMatrix = as.matrix(sFile)
+
+# Matriz de distancia con norma 2
+#method = "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+distancia = dist(sFileMatrix, method = "euclidean")
+
+# Método por defecto es complete link
+#"single", "complete"
+metodo = "complete"
+
+cluster = hclust(distancia, method = metodo)
+
+plot(cluster,
+      main = "Cluster jerarquico de s.csv")
+
+#Definimos 5 clases con definir_clases()
+nclases = 5
+
+#Cortamos
+corte = cutree(cluster, k=nclases)
+
+#Graficamos el dataset con el color de las clases obtenidas con hclust
+plot(sFile$V1,
+      sFile$V3,
+      col = corte,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo s.csv hclust complete")
+
+scatterplot3d(sFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "s.csv en 3D",
+              pch = 20, color = corte)
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=corte, y=sClass, prop.chisq = FALSE)
+```
+
+Se clasifican 762 instancias en la clase 1, cuando en verdad solo hay 185 en dicha clase. Vemos que el margen de error aumenta considerablemente con respecto al m&eacute;todo anterior. 
+
+7. **Usando _hclust single_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Dataframe a Matrix
+sFileMatrix = as.matrix(sFile)
+
+# Matriz de distancia con norma 2
+#method = "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+distancia = dist(sFileMatrix, method = "euclidean")
+
+# Método por defecto es complete link
+#"single", "complete"
+metodo = "single"
+
+cluster = hclust(distancia, method = metodo)
+
+plot(cluster,
+      main = "Cluster jerarquico de s.csv")
+
+#Definimos 5 clases con definir_clases()
+nclases = 5
+
+#Cortamos
+corte = cutree(cluster, k=nclases)
+
+#Graficamos el dataset con el color de las clases obtenidas con hclust
+plot(sFile$V1,
+      sFile$V3,
+      col = corte,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo s.csv hclust complete")
+
+scatterplot3d(sFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "s.csv en 3D",
+              pch = 20, color = corte)
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=corte, y=sClass, prop.chisq = FALSE)
+```
+
+De nuevo, existen muchos errores en la clasificaci&oacute;n usando este m&eacutetodo. 
+
+8. **Conclusi&oacute;n**: 
+
+Como a mencionamos usando cluster jer&acute;rquico con _complete link_ obtenemos los peores resultados. Con cluster jer&acute;rquico con _complete link_ existe un alto margen de error y con K Medias se obtienen resultados aceptable, considerando que la forma de los datos no es cilindrica. 
+
+En general, ninguno de los m&eacute;todos usados funcionan de forma correcta con este dataset debido a su forma en "S". Se debe usar un m&eacute;todo que se ajuste de manera correcta a esta forma. 
+
+## _help.csv_
+
+1. Cargamos el dataset **_help.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+helpFile = read.csv(file = "./help.csv", header = FALSE, sep = ",")
+head(helpFile)
+
+summary(helpFile$V4)
+```
+
+2. La &uacuteltima columna de **_help.csv_** contiene las clases asociadas a las instancias del dataset, pero estos valores se encuentran en el intervalo **(-4,15)** por lo que debemos transformarlas y para esto implementamos la funci&oacute;n _**definir_clase**_
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+definir_clase_help = function(numero){
+  if(numero <= -1.0)
+    return(1)
+  else if(numero > -1.0 && numero < 4.7188)
+    return(2)
+  else
+    return(3)
+}
+```
+
+Ahora, usamos esta funci&oacute;n para asignar una clase a cada instancia del dataset,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+for (i in 1:length(helpFile$V4)) {
+  helpFile$V4[i] = definir_clase_help(helpFile$V4[i])
+}
+
+#helpFile$V4
+```
+
+3. Separamos la &uacute;tima columna del dataset. La cual, hace referencia a la clase de cada instancia, 
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+helpClass = helpFile$V4
+helpFile = helpFile[c("V1", "V2", "V3")]
+head(helpFile)
+```
+
+Vemos cuantas clases contiene el dataset
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+table(helpClass)
+```
+
+4. Ahora graficamos el dataset, para verificar como se comportan los datos
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+scatterplot3d(helpFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "help.csv en 3D",
+              pch = 20, color = helpClass)
+
+plot(helpFile,
+      col = helpClass,
+      main = "Archivo help.csv")
+```
+
+Vemos que las columnas relevantes son _V1_ y _V3_, ya que con ellas se ve la figura formada por los datos (SOS). Tambi&eacute;n vemos que los datos se encuentran separados en tres clusters similares a los de los archivos anteriores, por lo que podemos modificar las clasesy reducirlas a 3.
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+helpFile = helpFile[c("V1", "V3")]
+head(helpFile)
+
+helpClass[1:1000] = 1
+helpClass[2001:3000] = 2
+
+plot(helpFile$V1,
+      helpFile$V3,
+      col = helpClass,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo help.csv")
+
+scatterplot3d(helpFile, col.axis = "blue", 
+              col.grid = "lightblue", main = "help.csv en 3D",
+              pch = 20, color = helpClass)
+```
+
+Debido a que el dataset posee tres clusters bien definidos y separados, usaremos k medias para intentar clasificar las instancias,
+
+5. **Usando _kmeans_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+helpFile.k.medias = kmeans(x = helpFile, centers = 3)
+
+#Graficamos los clusters obtenidos en kmeans
+plot(helpFile$V1,
+      helpFile$V3,
+      col = helpFile.k.medias$cluster,
+      xlab = "V1",
+      ylab = "V3",
+      main = "Archivo help.csv con kmedias")
+
+helpFile.k.medias$centers
+
+#Graficamos los centroides asociados a cada cluster
+#Usamos un color distinto para los centroides para verlos mejor 
+points(x = helpFile.k.medias$centers[, c("V1", "V3")], col = 1:5, pch = 20, cex = 3)
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=helpFile.k.medias$cluster, y=helpClass, prop.chisq = FALSE)
+```
+
+Detallando la matriz podemos observar que las etiquetas asignadas por k medias no corresponden a las originales. 
+
+Cambiamos esto y analizamos los resultados, 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+helpClusters = helpFile.k.medias$cluster
+
+helpClusters[helpClusters == 1] = 4
+helpClusters[helpClusters == 2] = 5
+helpClusters[helpClusters == 3] = 6
+
+helpClusters[helpClusters == 4] = 2
+helpClusters[helpClusters == 5] = 3
+helpClusters[helpClusters == 6] = 1
+
+CrossTable(x=helpClusters, y=helpClass, prop.chisq = FALSE)
+```
+
+Con k medias solo hay error en una instancia, por lo tanto este m&eacute;todo funciona casi perfectamente para este tipo de datasets. 
+
+### Preguntas
+
+- **Cu&aacute;ntos cl&uacutesters ve en el dataset help?**
+  Se ven 3 clusters bien definidos (S O S), dos S's y un espiral.
+
+- **Qu&eacute; pasa al aplicar la regla de asignaci&oacute;n de clases en este dataset?**
+  Ambas S's se dividen en dos clases (1 y 2), mientras que el espiral se corresponde con la clase 3. Por lo tanto, la regla no asigna correctamente las clases.
+
+- **Qu&eacute; soluci&oacute;n dar&iacute;a para asignar de manera correcta los valores de las clases y pueda analizar el desempe&ntilde;o del algoritmo de clustering de manera correcta?**
+  Determinamos en que parte del dataset se encuentran las instancias asociadas a cada una de las S's y asignamos una clase distinta a cada una.
+
+##_good_luck.csv_
+
+1. Cargamos el dataset **_good_luck.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+good_luckFile = read.csv(file = "./good_luck.csv", header = FALSE, sep = ",")
+head(good_luckFile)
+```
+
+2. Separamos la &uacute;tima columna del dataset. La cual, hace referencia a la clase de cada instancia, 
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+good_luckClass = good_luckFile$V11
+good_luckFile = good_luckFile[c("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10")]
+head(good_luckFile)
+
+summary(good_luckClass)
+```
+
+3. Ahora, hacemos un _plot_ para verificar como se comportan los datos de **_good_luck.csv_**,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Sumamos uno a good_luck Class porque la clase cero es el color blanco
+plot(good_luckFile,
+      col = good_luckClass + 1,
+      main = "Archivo good_luck.csv")
+```
+
+Vemos que los datos se separan en 2 clusters, pero al ser un dataset que posee 10 dimensiones, es imposible ver la forma exacta que poseen los datos. Parece ser algo similar a una esfera.
+
+4. Usaremos k medias para tratar de predecir las clases, 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+good_luckFile.k.medias = kmeans(x = good_luckFile, centers = 2)
+
+#Graficamos los clusters obtenidos en kmeans
+plot(good_luckFile,
+      col = good_luckFile.k.medias$cluster,
+      main = "Archivo good_luck.csv con kmedias")
+
+good_luckFile.k.medias$centers
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=good_luckFile.k.medias$cluster, y=good_luckClass + 1, prop.chisq = FALSE)
+```
+
+Se predicen de forma correcta 524 de 1000 (0.524) instancias, por lo tanto hubo error en 476 de 1000 (0.476).
+
+Veamos que ocurre si usamos _hclust complete_
+
+5. **Usando _hclust complete_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Dataframe a Matrix
+good_luckFileMatrix = as.matrix(good_luckFile)
+
+# Matriz de distancia con norma 2
+#method = "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+distancia = dist(good_luckFileMatrix, method = "euclidean")
+
+# Método por defecto es complete link
+#"single", "complete"
+metodo = "complete"
+
+cluster = hclust(distancia, method = metodo)
+
+plot(cluster,
+      main = "Cluster jerarquico de good_luck.csv")
+
+#Observamos dos clases en el analisis exploratorio
+nclases = 2
+
+#Cortamos
+corte = cutree(cluster, k=nclases)
+
+#Graficamos el dataset con el color de las clases obtenidas con hclust
+plot(good_luckFile,
+      col = corte,
+      main = "Archivo good_luck.csv hclust complete")
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=corte, y=good_luckClass + 1, prop.chisq = FALSE)
+```
+
+Se predicen de forma correcta 545 de 1000 (0.545) instancias, por lo tanto hubo error en 455 de 1000 (0.455).
+
+Veamos que ocurre si usamos _hclust single_
+
+6. **Usando _hclust single_**
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#Dataframe a Matrix
+good_luckFileMatrix = as.matrix(good_luckFile)
+
+# Matriz de distancia con norma 2
+#method = "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski"
+distancia = dist(good_luckFileMatrix, method = "euclidean")
+
+# Método por defecto es complete link
+#"single", "complete"
+metodo = "single"
+
+cluster = hclust(distancia, method = metodo)
+
+plot(cluster,
+      main = "Cluster jerarquico de good_luck.csv")
+
+#Observamos dos clases en el analisis exploratorio
+nclases = 2
+
+#Cortamos
+corte = cutree(cluster, k=nclases)
+
+#Graficamos el dataset con el color de las clases obtenidas con hclust
+plot(good_luckFile,
+      col = corte,
+      main = "Archivo good_luck.csv hclust single")
+```
+
+Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=corte, y=good_luckClass + 1, prop.chisq = FALSE)
+```
+
+Se predicen de forma correcta 514 de 1000 (0.514) instancias, por lo tanto hubo error en 486 de 1000 (0.486).
+
+7. **Conclusi&oacute;n**: 
+
+Ninguno de los m&eacute;todos usados funciona de forma correcta debido a que el set de datos es de 10 dimensiones, pero de tener que eligir alguno, podr&iacute;a ser _kmeans_ o _hclust complete link_ porque con estos se comete la menor cantidad de errores.
+
+##Definici&oacute;n de la funci&oacute;n _codoJambu()_
+
+El codo de jambu es un m&eacute;todo que nos permite predecir el k o la cantidad de clases usadas en k medias. 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+codo_jambu = function(x, n){
+  InerciaIC = rep(0, n)
+  for (k in 1:n) {
+      K = kmeans(x, k, nstart = n)
+      InerciaIC[k] = K$tot.withinss
+  }
+  plot(InerciaIC, col = "skyblue", type = "b", 
+       main="Codo de Jambu con n iteraciones")
+}
+```
+
+##_guess.csv_
+
+1. Cargamos el dataset **_guess.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+guessFile = read.csv(file = "./guess.csv", header = FALSE, sep = ",")
+head(guessFile)
+```
+
+2. Ahora, hacemos un _plot_ para verificar como se comportan los datos de **_guess.csv_**,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+plot(guessFile$V1,
+      guessFile$V2,
+      col = "skyblue",
+      xlab = "V1",
+      ylab = "V2",
+      main = "Archivo guess.csv")
+```
+
+No se observa bien la cantidad de clusters que posee el dataset, parecen ser 3 &oacute; 4. Usemos la funci&oacute;n *codo_jambu()* para determinar el k. 
+
+3. Llamamos a *codo_jambu()*
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+codo_jambu(guessFile, n=10)
+```
+
+Veamos que a partir de **k=4** no varia mucho la curva del codo de jambu y este es el punto que usaremos para aplicar kmedias. 
+
+4. Usamos la funci&oacute;n kmeans y verificamos que tan bien predice las clases del dataset con **k=4**, porque este fue el n&uacute;mero hallado con el codo de Jambu,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+guessFile.k.medias = kmeans(x = guessFile, centers = 4)
+
+#Graficamos los clusters obtenidos en kmeans
+plot(guessFile$V1,
+      guessFile$V2,
+      col = guessFile.k.medias$cluster,
+      xlab = "V1",
+      ylab = "V2",
+      main = "Archivo guess.csv")
+
+#Graficamos los centroides asociados a cada cluster
+#Usamos un color distinto para los centroides para verlos mejor 
+points(x = guessFile.k.medias$centers[, c("V1", "V2")], col = 5:8, pch = 19, cex = 3)
+```
+
+Efectivamente, con k=4 el algoritmo separa de forma correcta los clusters del dataset **_guess.csv_**
+
+##Definici&oacute;n de la funci&oacute;n _kmeans()_
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#c -> centroides
+#x -> dataframe with instances
+
+K_Means = function(centers, x) {
+  xClasses = vector(length = length(x[,1])) #vector con las clases
+  for(j in 1:length(x[,1])){ #iterar en instancias
+    distVector = c(1:length(centers[,1])) #Vector donde se almacenan las 
+                                        #distancias de una instancia a cada centro
+    for(i in 1:length(centers[,1])) { #recorremos todos los centros
+      df = x[j,] #instancia actual
+      df[2,] = centers[i,] #anexamos la instancia al dataframe
+      distVector[i] = dist(df, method = "euclidean")[1] #norma 2 entre la instancia y el centro
+    }
+  
+    xClasses[j] = which.min(distVector) #Seleccionamos la menor distancia y 
+                                #la posicion de la misma es la clase de la instancia j
+  }
+  
+  xClasses
+}
+```
+
+## _a_big.csv_
+
+1. Cargamos el dataset **_a_big.csv_**, asumiendo que se hizo **setwd(directorio)**:
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+a_bigFile = read.csv(file = "./a_big.csv", header = FALSE, sep = ",")
+head(a_bigFile)
+```
+
+2. Separamos la &uacute;tima columna del dataset. La cual, hace referencia a la clase de cada instancia, 
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+a_bigClass = a_bigFile$V3
+a_bigFile = a_bigFile[c("V1", "V2")]
+head(a_bigFile)
+```
+
+3. Ahora, hacemos un _plot_ para verificar como se comportan los datos de **_a_big.csv_**,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+summary(a_bigClass)
+#Sumamos uno a aClass porque la clase cero es el color blanco
+#plot(a_bigFile$V1,
+#      a_bigFile$V2,
+#      col = a_bigClass + 1,
+#      xlab = "V1",
+#      ylab = "V2",
+#      main = "Archivo a_big.csv")
+
+length(a_bigFile$V1)
+```
+
+Vemos que los datos se separan en 3 clusters circulares que se encuentran unidos y es un poco lento el proceso porque el dataset posee 300000 instancias. 
+
+4. Usamos la funci&oacute;n kmeans y verificamos que tan bien predice las clases del dataset con **k=3**, porque este fue el n&uacute;mero de clusters hallados en el an&aacute;lisis exploratorio,
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+a_bigFile.k.medias = kmeans(x = a_bigFile, centers = 3)
+
+#Graficamos los clusters obtenidos en kmeans
+#plot(a_bigFile$V1,
+#      a_bigFile$V2,
+#      col = a_bigFile.k.medias$cluster,
+#      xlab = "V1",
+#      ylab = "V2",
+#      main = "Archivo a_big.csv kmeans")
+
+#Graficamos los centroides asociados a cada cluster
+#Usamos un color distinto para los centroides para verlos mejor 
+#points(x = a_bigFile.k.medias$centers[, c("V1", "V2")], col = 4:6, pch = 19, cex = 3)
+```
+
+5. Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+CrossTable(x=a_bigFile.k.medias$cluster, y=a_bigClass, prop.chisq = FALSE)
+```
+
+Vemos que hay error en 2449 (0.008), lo cual es no mucho comparado con el gran tama&ntilde;o del dataset.
+
+6. Usando la funci&oacute;n _kmeans_ el proceso tarda un poco, veamos que pasa si usamos los centroides de **_a.csv_**, dado que este archivo es un subconjunto de **_a_big.csv_**. Adem&aacute;s usaremos la funci&oacute;n **_K_Means_** implementada en la secci&oacute;n anterior.
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#a_bigFile.kmeans = K_Means(x = a_bigFile, centers = aCentroids)
+
+#Graficamos los clusters obtenidos en kmeans
+#plot(a_bigFile$V1,
+#     a_bigFile$V2,
+#     col = a_bigFile.kmeans,
+#     xlab = "V1",
+#     ylab = "V2",
+#     main = "Archivo a_big.csv kmeans propio")
+
+#Graficamos los centroides asociados a cada cluster
+#Usamos un color distinto para los centroides para verlos mejor 
+#points(x = aCentroids, col = 4:6, pch = 19, cex = 3)
+```
+
+7. Verificamos la calidad del modelo con una matriz de confusi&oacute;n 
+
+```{r warning=FALSE, message=FALSE, prompt=TRUE, tidy=TRUE}
+#CrossTable(x=a_bigFile.kmeans, y=a_bigClass, prop.chisq = FALSE)
+```
